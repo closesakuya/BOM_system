@@ -1,0 +1,95 @@
+import { expect, test, type Page } from '@playwright/test'
+
+async function login(page: Page) {
+  await page.goto('/login')
+  await page.getByLabel('用户名').fill('admin')
+  await page.getByLabel('密码').fill('admin123')
+  await page.getByRole('button', { name: '登录', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '工作台' })).toBeVisible()
+}
+async function get(page: Page, path: string) {
+  return page.evaluate(async path => {
+    const response = await fetch('/api' + path, { headers: { Authorization: 'Bearer ' + localStorage.getItem('bom_token') } })
+    if (!response.ok) throw new Error(await response.text())
+    return response.json()
+  }, path)
+}
+async function openItem(page: Page, code: string) {
+  const data = await get(page, `/items?q=${code}&limit=10`)
+  const item = data.items.find((i: any) => i.code === code)
+  await page.goto(`/items/${item.item_type}?id=${item.id}&locate=1`)
+  await expect(page.locator('tr.selected-row')).toContainText(code)
+  return item
+}
+
+test.describe('V1.2 路径选配与交互验收', () => {
+  test.beforeEach(async ({ page }) => login(page))
+
+  test('本路径选用需确认保存、数量不变、直接组成同步、记录可见', async ({ page }) => {
+    const item = await openItem(page, '05.999.01')
+    await page.getByRole('button', { name: 'BOM 编辑', exact: true }).click()
+    const direct = page.getByTestId('direct-bom-table')
+    const before = await get(page, `/items/${item.id}`)
+    const row = page.locator('tr').filter({ has: page.getByRole('button', { name: '配置选配', exact: true }) }).filter({ hasText: '90.9004.01' }).first()
+    await row.getByRole('button', { name: '配置选配', exact: true }).click()
+    const modal = page.getByRole('dialog', { name: '路径选配配置' })
+    const firstShare=modal.locator('tr').filter({hasText:'90.9004.01'}).locator('input[type=number]')
+    await firstShare.fill('65')
+    await firstShare.press('Tab')
+    await expect(modal.locator('tr').filter({hasText:'90.9005.01'}).locator('input[type=number]')).toHaveValue('35.00')
+    await modal.locator('tr').filter({ hasText: '90.9005.01' }).getByRole('radio').check()
+    expect((await get(page, `/items/${item.id}`)).components).toEqual(before.components)
+    await modal.getByLabel('变更说明').fill('浏览器验收：确认切换路径选配，保留组成数量')
+    await page.keyboard.press('Control+A')
+    await page.keyboard.press('Control+C')
+    await page.keyboard.press('Control+V')
+    await page.keyboard.press('Escape')
+    await expect(modal).toBeVisible()
+    await page.locator('.modal-mask').click({ position: { x: 3, y: 3 } })
+    await expect(modal).toBeVisible()
+    await modal.getByRole('button', { name: '确认保存', exact: true }).click()
+    await expect(modal).not.toBeVisible({ timeout: 30000 })
+    await expect(direct).toContainText('90.9005.01')
+    const after = await get(page, `/items/${item.id}`)
+    expect(after.components.map((r: any) => r.quantity)).toEqual(before.components.map((r: any) => r.quantity))
+    await page.getByRole('button', { name: '变更记录', exact: true }).click()
+    await expect(page.getByText('浏览器验收：确认切换路径选配，保留组成数量').first()).toBeVisible()
+  })
+
+  test('整机继承及本路径覆盖可见，技术生产默认展示选配，快速查看可连点', async ({ page }) => {
+    await openItem(page, '00.999.02')
+    await page.getByRole('button', { name: 'BOM 编辑', exact: true }).click()
+    await page.getByRole('button', { name: '全部展开', exact: true }).click()
+    await expect(page.getByText('本路径自定义', { exact: true }).first()).toBeVisible()
+    await page.getByRole('button', { name: '技术 BOM', exact: true }).click()
+    await expect(page.getByLabel('显示选配替代')).toBeChecked()
+    await expect(page.getByLabel('展开有下级组成的原材料')).not.toBeChecked()
+    await page.getByRole('button', { name: '查看详细信息', exact: true }).click()
+    const table = page.getByTestId('technical-detail-table')
+    await expect(table.getByText('备用选配', { exact: true }).first()).toBeVisible()
+    await table.locator('.code-link').first().click()
+    await expect(page.getByRole('heading', { name: '物料快速查看' })).toBeVisible()
+    const quick = page.locator('.modal').filter({ has: page.getByRole('heading', { name: '物料快速查看' }) })
+    await quick.locator('.code-link').first().click()
+    await expect(page.getByRole('heading', { name: '物料快速查看' })).toHaveCount(1)
+    await quick.getByRole('button', { name: '关闭', exact: true }).click()
+    await page.getByRole('button', { name: '生产 BOM', exact: true }).click()
+    await expect(page.getByLabel('显示选配替代')).toBeChecked()
+  })
+
+  test('原材料组成与停用筛选、比较默认不展开、关系总览可定位', async ({ page }) => {
+    await page.goto('/items/material')
+    await page.locator('label').filter({ hasText: /^下级组成/ }).locator('select').selectOption('true')
+    await expect(page.getByTestId('item-list-table').locator('tbody tr').first()).toBeVisible()
+    const rows = await get(page, '/items?item_type=material&has_components=true&limit=1000')
+    expect(rows.total).toBeGreaterThan(0)
+    await page.locator('label').filter({ hasText: /^状态全部状态/ }).locator('select').selectOption('disabled')
+    await page.getByLabel('显示已停用').check()
+    await page.goto('/compare')
+    await expect(page.getByRole('checkbox')).not.toBeChecked()
+    await page.goto('/alternatives')
+    await expect(page.getByRole('heading', { name: '选配关系总览' })).toBeVisible()
+    await page.getByRole('button', { name: '查看／编辑所在 BOM' }).first().click()
+    await expect(page.getByRole('dialog', { name: '路径选配配置' })).toBeVisible()
+  })
+})

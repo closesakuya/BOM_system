@@ -1,0 +1,25 @@
+{
+  "name": "bom-v1-frontend",
+  "private": true,
+  "version": "1.2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "pretest:e2e": "..\\.venv\\Scripts\\python.exe ..\\backend\\tests\\create_e2e_fixture.py",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "vue": "3.5.18",
+    "vue-router": "4.5.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.55.1",
+    "@types/node": "22.17.1",
+    "@vitejs/plugin-vue": "5.2.4",
+    "typescript": "5.7.3",
+    "vite": "6.4.3",
+    "vue-tsc": "2.2.12"
+  }
+}
