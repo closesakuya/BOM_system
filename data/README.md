@@ -4,7 +4,7 @@
 
 首次安装需要依据部署文档准备原有输入路径：
 
-- `migration/BOM物料清单管理(1).xlsm`
+- `migration/BOM物料清单管理.xlsm`（新版生产输入；旧文件名仅兼容历史部署）
 - `templates/新增原材料编码登记表(模版).xlsx`
 - `samples/00.005.01-TN水质分析仪-D60-YJ-BZ-A1-I-16C-11-0-生产BOM.xlsx`（参考样例）
 

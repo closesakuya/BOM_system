@@ -29,3 +29,6 @@ docs/requirements/*.pdf
 !.env.example
 *.pem
 *.key
+# Local delivery archive and requirements containing initial account passwords.
+/BOM.zip
+/docs/requirements/四次需求.md

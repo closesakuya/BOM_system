@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 ItemType = Literal["material", "semi_finished", "unit", "machine"]
 ItemStatus = Literal["active", "trial", "disabled"]
 SourceType = Literal["purchased", "outsourced", "self_made"]
-RoleType = Literal["admin", "maintainer", "viewer"]
+RoleType = Literal["admin", "dev", "product", "guest", "maintainer", "viewer"]
 
 
 class LoginIn(BaseModel):
@@ -33,6 +33,7 @@ class UserCreate(BaseModel):
 
 
 class UserUpdate(BaseModel):
+    username: str | None = Field(default=None, min_length=3, max_length=80)
     display_name: str | None = None
     department: str | None = None
     role: RoleType | None = None

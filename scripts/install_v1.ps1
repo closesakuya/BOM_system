@@ -45,20 +45,20 @@ try {
 
 $DatabasePath = Join-Path $ProjectRoot "runtime\bom_v1.db"
 if (-not (Test-Path -LiteralPath $DatabasePath)) {
-    $LegacyPath = Join-Path $ProjectRoot "data\migration\BOM物料清单管理(1).xlsm"
-    $RulePath = Join-Path $ProjectRoot "data\templates\新增原材料编码登记表(模版).xlsx"
-    if (-not (Test-Path -LiteralPath $LegacyPath)) {
-        throw "正式数据库不存在，并且缺少历史迁移文件：$LegacyPath"
+    Write-Host "首次部署：从新版生产 Excel 构建独立数据库，验证后启用。" -ForegroundColor Cyan
+    $CandidatePath = Join-Path $ProjectRoot ("runtime\production-candidate-" + (Get-Date -Format "yyyyMMdd-HHmmss-fff") + ".db")
+    $LocalAccounts = Join-Path $ProjectRoot "docs\requirements\四次需求.md"
+    if (Test-Path -LiteralPath $LocalAccounts) {
+        & $PythonCommand -m backend.app.production_rebuild --candidate $CandidatePath --accounts-file $LocalAccounts
+    } else {
+        Write-Host "未提供本地账户配置，请依次输入四个账户的初始密码（输入不会显示）。"
+        & $PythonCommand -m backend.app.production_rebuild --candidate $CandidatePath
     }
-    if (-not (Test-Path -LiteralPath $RulePath)) {
-        throw "正式数据库不存在，并且缺少编码规则模板：$RulePath"
-    }
-    & $PythonCommand -m backend.app.migration
-    if ($LASTEXITCODE -ne 0) { throw "首次历史数据预检失败。" }
-    & $PythonCommand -m backend.app.migration --apply
-    if ($LASTEXITCODE -ne 0) { throw "首次历史数据初始化失败。" }
+    if ($LASTEXITCODE -ne 0) { throw "新版生产数据构建失败；未替换任何数据库。" }
+    & $PythonCommand -m backend.app.production_rebuild --activate $CandidatePath --target $DatabasePath
+    if ($LASTEXITCODE -ne 0) { throw "候选库启用失败，请检查报告。" }
 } else {
-    Write-Host "检测到现有数据库，跳过一次性历史 XLSM 迁移：$DatabasePath" -ForegroundColor Cyan
+    Write-Host "检测到现有数据库，仅执行升级检查，不重复导入、不重置账户：$DatabasePath" -ForegroundColor Cyan
 }
 & $PythonCommand -m backend.app.v1_2_migration --check-applied
 $AlreadyV12 = ($LASTEXITCODE -eq 0)

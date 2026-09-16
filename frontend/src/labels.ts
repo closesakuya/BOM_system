@@ -11,7 +11,7 @@ export const sourceLabels: Record<string, string> = {
 }
 
 export const roleLabels: Record<string, string> = {
-  admin: '管理员', maintainer: '维护员', viewer: '查看者',
+  dev: '研发', product: '生产', guest: '访客', admin: '管理员', maintainer: '维护员', viewer: '查看者',
 }
 
 export const actionLabels: Record<string, string> = {
@@ -25,10 +25,13 @@ export const actionLabels: Record<string, string> = {
   migrate_unofficial_material_v1_1_1: '迁移未正式物料', normalize_key_component_code: '规范化关键器件码',
   backfill_machine_model: '根据整机名称初始化机型',
   archive_after_promotion: '转正式后封存来源',
+  configure: '配置选配', migrate_v1_2: 'V1.2 数据初始化', seed_v1_2_demo: '初始化路径选配示例',
+  production_rebuild: '生产数据重建', migrate_quantity: '迁移数量调整',
 }
 
 export const entityLabels: Record<string, string> = {
   item: '物料', bom_line: 'BOM 组成', bom: 'BOM', user: '账户', code_rule: '编码规则',
+  path_alternative: '路径选配',
   code_rules: '编码规则', alternative_group: '替代组', material_promotion_link: '转正式关联', import_batch: '导入批次', import_row: '导入预览行', database: '数据库',
 }
 

@@ -66,8 +66,8 @@ def test_machine_model_backfill_matches_name_is_audited_and_idempotent(tmp_path:
 
     first = apply_backfill(database, backup_dir=backups, report_dir=reports)
     assert first["status"] == "success"
-    assert first["total_machines"] == 9
-    assert first["updated"] == 8
+    assert first["total_machines"] == len(MACHINE_MODELS) + 2
+    assert first["updated"] == len(MACHINE_MODELS) + 1
     assert first["skipped_existing"] == 1
     assert first["integrity"] == "ok"
     assert Path(first["backup"]).is_file()
@@ -79,6 +79,7 @@ def test_machine_model_backfill_matches_name_is_audited_and_idempotent(tmp_path:
         "R60": 1,
         "T60": 1,
         "T65": 1,
+        "T70": 1,
         "Y60": 1,
         "人工机型": 1,
         OTHER_MODEL: 1,
@@ -91,16 +92,16 @@ def test_machine_model_backfill_matches_name_is_audited_and_idempotent(tmp_path:
         assert values["人工已分类"] == "人工机型"
         assert db.execute(
             "SELECT count(*) FROM audit_events WHERE action = 'backfill_machine_model'"
-        ).fetchone()[0] == 8
+        ).fetchone()[0] == len(MACHINE_MODELS) + 1
         assert db.execute(
             "SELECT machine_model FROM items WHERE item_type = 'material'"
         ).fetchone()[0] is None
 
     second = apply_backfill(database, create_backup=False, write_report=False)
     assert second["updated"] == 0
-    assert second["skipped_existing"] == 9
+    assert second["skipped_existing"] == len(MACHINE_MODELS) + 2
     with sqlite3.connect(database) as db:
-        assert db.execute("SELECT count(*) FROM audit_events").fetchone()[0] == 8
+        assert db.execute("SELECT count(*) FROM audit_events").fetchone()[0] == len(MACHINE_MODELS) + 1
 
 
 def test_machine_model_backfill_rejects_ambiguous_names_and_rolls_back(tmp_path: Path):

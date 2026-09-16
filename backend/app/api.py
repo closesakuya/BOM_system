@@ -212,6 +212,16 @@ def update_user(user_id: int, payload: schemas.UserUpdate, db: Db, actor: auth.A
         raise HTTPException(status_code=404, detail="账户不存在")
     before = services.user_dict(row)
     values = payload.model_dump(exclude_unset=True)
+    if any(values.get(key) is None for key in ('username', 'role', 'active', 'display_name') if key in values):
+        raise HTTPException(422, '用户名、角色、状态和显示名称不能为空')
+    if 'username' in values:
+        values['username'] = values['username'].strip()
+        if len(values['username']) < 3:
+            raise HTTPException(422, '用户名至少 3 个字符')
+        if db.scalar(select(models.User.id).where(models.User.username == values['username'], models.User.id != user_id)):
+            raise HTTPException(409, '用户名已存在')
+    if row.id == actor.id and values.get('role', row.role) != 'admin':
+        raise HTTPException(409, '不能移除当前登录账户的管理员角色')
     password = values.pop("password", None)
     for key, value in values.items():
         setattr(row, key, value)
@@ -340,7 +350,7 @@ def item_query_parts(
 @router.get("/items-basic-export")
 def export_item_basics(
     db: Db,
-    user: auth.CurrentUser,
+    user: auth.ExportUser,
     item_type: schemas.ItemType,
     q: str | None = None,
     status: str | None = None,
@@ -469,7 +479,8 @@ def key_component_code_availability(
 
 
 @router.post("/items", status_code=201)
-def create_item(payload: schemas.ItemCreate, db: Db, actor: auth.WriteUser) -> dict[str, Any]:
+def create_item(payload: schemas.ItemCreate, db: Db, actor: auth.MaterialWriteUser) -> dict[str, Any]:
+    auth.check_material_write(actor, payload=payload)
     return services.item_dict(services.create_item(db, payload, actor))
 
 
@@ -497,7 +508,8 @@ def get_item(item_id: int, db: Db, user: auth.CurrentUser) -> dict[str, Any]:
 
 
 @router.patch("/items/{item_id}")
-def update_item(item_id: int, payload: schemas.ItemUpdate, db: Db, actor: auth.WriteUser) -> dict[str, Any]:
+def update_item(item_id: int, payload: schemas.ItemUpdate, db: Db, actor: auth.MaterialWriteUser) -> dict[str, Any]:
+    auth.check_material_write(actor, require_item(db, item_id), payload)
     return services.item_dict(services.update_item(db, require_item(db, item_id), payload, actor))
 
 
@@ -514,13 +526,14 @@ def promote_item(
 
 
 @router.delete("/items/{item_id}")
-def delete_item(item_id: int, reason: str, db: Db, actor: auth.AdminUser) -> dict[str, bool]:
+def delete_item(item_id: int, reason: str, db: Db, actor: auth.MaterialWriteUser) -> dict[str, bool]:
+    auth.check_material_write(actor, require_item(db, item_id))
     services.soft_delete_item(db, require_item(db, item_id), actor, reason)
     return {"ok": True}
 
 
 @router.post("/items/{item_id}/restore")
-def restore_item(item_id: int, reason: str, db: Db, actor: auth.AdminUser) -> dict[str, Any]:
+def restore_item(item_id: int, reason: str, db: Db, actor: auth.WriteUser) -> dict[str, Any]:
     item = require_item(db, item_id, include_deleted=True)
     return services.item_dict(services.restore_item(db, item, actor, reason))
 
@@ -942,7 +955,7 @@ def item_history(item_id: int, db: Db, user: auth.CurrentUser) -> list[dict[str,
 
 @router.get("/items/{item_id}/export/{bom_type}")
 def export_bom(
-    item_id: int, bom_type: str, db: Db, user: auth.CurrentUser,
+    item_id: int, bom_type: str, db: Db, user: auth.ExportUser,
     show_alternatives: bool = True, expand_materials: bool | None = None,
 ) -> StreamingResponse:
     if bom_type not in {"technical", "production"}:
@@ -957,7 +970,7 @@ def export_bom(
 
 @router.post("/bom/batch-export/{bom_type}")
 def batch_export(
-    bom_type: str, item_ids: list[int], db: Db, user: auth.CurrentUser,
+    bom_type: str, item_ids: list[int], db: Db, user: auth.ExportUser,
     show_alternatives: bool = True, expand_materials: bool | None = None,
 ) -> StreamingResponse:
     if bom_type not in {"technical", "production"}:
@@ -979,7 +992,7 @@ def compare(item_ids: str, db: Db, user: auth.CurrentUser, expand_materials: boo
 
 
 @router.get("/compare/export")
-def export_compare(item_ids: str, db: Db, user: auth.CurrentUser, expand_materials: bool = False) -> StreamingResponse:
+def export_compare(item_ids: str, db: Db, user: auth.ExportUser, expand_materials: bool = False) -> StreamingResponse:
     result = compare(item_ids, db, user, expand_materials)
     return download(excel_io.compare_workbook(result), "BOM差异比较.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
@@ -993,7 +1006,7 @@ def list_code_rules(db: Db, user: auth.CurrentUser) -> list[dict[str, Any]]:
 
 
 @router.post("/code-rule-imports/preview")
-async def preview_code_rule_import(db: Db, actor: auth.AdminUser, file: UploadFile = File(...)) -> dict[str, Any]:
+async def preview_code_rule_import(db: Db, actor: auth.WriteUser, file: UploadFile = File(...)) -> dict[str, Any]:
     return await excel_io.preview_code_rule_import(db, file)
 
 
@@ -1002,7 +1015,7 @@ def rule_payload(row: models.CodeRule) -> dict[str, Any]:
 
 
 @router.post("/code-rule-imports/apply")
-def apply_code_rule_import(payload: schemas.CodeRuleReplaceIn, db: Db, actor: auth.AdminUser) -> dict[str, Any]:
+def apply_code_rule_import(payload: schemas.CodeRuleReplaceIn, db: Db, actor: auth.WriteUser) -> dict[str, Any]:
     if not payload.rules:
         raise HTTPException(status_code=422, detail="规则清单不能为空")
     if any(rule.item_type == "material" and (rule.prefix.strip().startswith("99.") or "99." in rule.pattern) for rule in payload.rules):
@@ -1028,12 +1041,12 @@ def apply_code_rule_import(payload: schemas.CodeRuleReplaceIn, db: Db, actor: au
 
 
 @router.get("/code-rule-snapshots")
-def list_code_rule_snapshots(db: Db, user: auth.AdminUser) -> list[dict[str, Any]]:
+def list_code_rule_snapshots(db: Db, user: auth.WriteUser) -> list[dict[str, Any]]:
     return [{"id": row.id, "reason": row.reason, "actor_id": row.actor_id, "created_at": row.created_at, "rules": len(json.loads(row.rules_json))} for row in db.scalars(select(models.CodeRuleSnapshot).order_by(models.CodeRuleSnapshot.id.desc()).limit(20))]
 
 
 @router.post("/code-rule-snapshots/{snapshot_id}/restore")
-def restore_code_rule_snapshot(snapshot_id: int, reason: str, db: Db, actor: auth.AdminUser) -> dict[str, Any]:
+def restore_code_rule_snapshot(snapshot_id: int, reason: str, db: Db, actor: auth.WriteUser) -> dict[str, Any]:
     snapshot = db.get(models.CodeRuleSnapshot, snapshot_id)
     if not snapshot:
         raise HTTPException(status_code=404, detail="规则快照不存在")
@@ -1052,7 +1065,7 @@ def restore_code_rule_snapshot(snapshot_id: int, reason: str, db: Db, actor: aut
 
 
 @router.post("/code-rules", status_code=201)
-def create_code_rule(payload: schemas.CodeRuleIn, db: Db, actor: auth.AdminUser) -> dict[str, Any]:
+def create_code_rule(payload: schemas.CodeRuleIn, db: Db, actor: auth.WriteUser) -> dict[str, Any]:
     if payload.item_type == "material" and (payload.prefix.strip().startswith("99.") or "99." in payload.pattern):
         raise HTTPException(status_code=422, detail="99.XXXX.X 为未正式原材料专属号段，不能用于正式编码规则")
     row = models.CodeRule(**payload.model_dump())
@@ -1064,7 +1077,7 @@ def create_code_rule(payload: schemas.CodeRuleIn, db: Db, actor: auth.AdminUser)
 
 
 @router.patch("/code-rules/{rule_id}")
-def update_code_rule(rule_id: int, payload: schemas.CodeRuleUpdateIn, db: Db, actor: auth.AdminUser) -> dict[str, Any]:
+def update_code_rule(rule_id: int, payload: schemas.CodeRuleUpdateIn, db: Db, actor: auth.WriteUser) -> dict[str, Any]:
     row = db.get(models.CodeRule, rule_id)
     if not row:
         raise HTTPException(status_code=404, detail="编码规则不存在")
@@ -1253,7 +1266,7 @@ def commit_import(batch_id: int, payload: schemas.ImportCommitIn, db: Db, actor:
 
 
 @router.get("/imports/{batch_id}/report")
-def import_report(batch_id: int, db: Db, user: auth.CurrentUser) -> StreamingResponse:
+def import_report(batch_id: int, db: Db, user: auth.ExportUser) -> StreamingResponse:
     if not db.get(models.ImportBatch, batch_id):
         raise HTTPException(status_code=404, detail="导入批次不存在")
     return download(excel_io.import_error_report(db, batch_id), f"导入批次-{batch_id}-结果.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
@@ -1336,7 +1349,7 @@ def maintenance_parent_candidates(
 
 
 @router.post("/maintenance/preview")
-def preview_maintenance(payload: schemas.MaintenancePreviewIn, db: Db, user: auth.CurrentUser) -> dict[str, Any]:
+def preview_maintenance(payload: schemas.MaintenancePreviewIn, db: Db, user: auth.WriteUser) -> dict[str, Any]:
     if payload.operation == "add":
         if not payload.target_item_id or payload.quantity is None:
             raise HTTPException(status_code=422, detail="新增必须选择目标物料并填写数量")
@@ -1433,13 +1446,13 @@ def list_audit(
 
 
 @router.get("/audit/export")
-def export_audit(db: Db, user: auth.CurrentUser) -> StreamingResponse:
+def export_audit(db: Db, user: auth.ExportUser) -> StreamingResponse:
     events = list(db.scalars(select(models.AuditEvent).order_by(models.AuditEvent.id)))
     return download(excel_io.audit_workbook(events), "变更日志.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
 @router.post("/backups")
-def create_backup(payload: schemas.BackupIn, db: Db, actor: auth.AdminUser) -> dict[str, Any]:
+def create_backup(payload: schemas.BackupIn, db: Db, actor: auth.WriteUser) -> dict[str, Any]:
     if not settings.database_url.startswith("sqlite:///"):
         raise HTTPException(status_code=409, detail="当前数据库不是 SQLite，不能使用文件备份")
     db.commit()

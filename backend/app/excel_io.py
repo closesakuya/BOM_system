@@ -88,85 +88,15 @@ def technical_level_labels(rows: list[dict[str, Any]]) -> list[str]:
 def technical_workbook(
     db: Session, root_id: int, *, show_alternatives: bool = True, expand_materials: bool | None = None,
 ) -> tuple[str, bytes]:
-    root = db.get(models.Item, root_id)
-    if not root:
-        raise HTTPException(status_code=404, detail="对象不存在")
-    effective_expand = services.default_expand_materials(root) if expand_materials is None else expand_materials
-    rows = services.technical_bom(
-        db, root_id, show_alternatives=show_alternatives, expand_materials=effective_expand,
-    )
-    if not rows and root.item_type == "material":
-        rows = [{
-            "sequence": 1, "level": 0, "path": [root.id], "parent_item_id": None,
-            "line_id": None, "quantity": "1", "line_remark": None,
-            "item": services.item_dict(root), "disabled_warning": False,
-            "is_alternative": False, "is_backup_path": False,
-            "alternative_group_id": None, "alternative_group_name": None, "market_share": None,
-        }]
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "技术BOM"
-    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(TECHNICAL_HEADERS))
-    archive_note = "｜封存来源，仅供历史参考" if root.unofficial_status == "archived" else ""
-    ws.cell(1, 1, f"{root.code}-{root.name}｜显示选配：{'是' if show_alternatives else '否'}｜展开有下级组成的原材料：{'是' if effective_expand else '否'}{archive_note}")
-    ws.cell(1, 1).font = Font(bold=True, size=14)
-    ws.append(TECHNICAL_HEADERS)
-    latest_reasons = latest_item_change_reasons(db, {int(row["item"]["id"]) for row in rows})
-    level_labels = technical_level_labels(rows)
-    for row, level_label in zip(rows, level_labels, strict=True):
-        item = row["item"]
-        ws.append([
-            row["sequence"], level_label, item["code"], item["name"],
-            item["specification"], item["unit"], Decimal(row["quantity"]),
-            row["line_remark"] or item["remark"], item["previous_version_name"],
-            item["invoice_name"], item["material_attribute"],
-            "备用选配" if row.get("is_backup_path") else ("当前选用" if row.get("alternative_group_name") else None),
-            row.get("alternative_group_name"),
-            f"{row['market_share']}%" if row.get("market_share") is not None else None,
-            latest_reasons.get(item["id"]),
-        ])
-    style_sheet(ws, len(TECHNICAL_HEADERS))
-    ws.column_dimensions["B"].width = 32
-    for cell in ws["B"][2:]:
-        cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=False)
-    filename = safe_filename(f"{root.code}-{root.name}-技术BOM.xlsx")
-    return filename, workbook_bytes(wb)
+    from .bom_excel import export_workbook
+    return export_workbook(db, root_id, show_alternatives=show_alternatives, expand_materials=expand_materials)
 
 
 def production_workbook(
     db: Session, root_id: int, *, show_alternatives: bool = True, expand_materials: bool | None = None,
 ) -> tuple[str, bytes]:
-    root = db.get(models.Item, root_id)
-    if not root:
-        raise HTTPException(status_code=404, detail="对象不存在")
-    effective_expand = services.default_expand_materials(root) if expand_materials is None else expand_materials
-    rows = services.production_bom(
-        db, root_id, show_alternatives=show_alternatives, expand_materials=effective_expand,
-    )
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "生产BOM"
-    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(PRODUCTION_HEADERS))
-    archive_note = "｜封存来源，仅供历史参考" if root.unofficial_status == "archived" else ""
-    ws.cell(1, 1, f"{root.code}-{root.name}｜显示选配：{'是' if show_alternatives else '否'}｜展开有下级组成的原材料：{'是' if effective_expand else '否'}{archive_note}")
-    ws.cell(1, 1).font = Font(bold=True, size=14)
-    ws.append(PRODUCTION_HEADERS)
-    latest_reasons = latest_item_change_reasons(db, {int(row["item"]["id"]) for row in rows})
-    for row in rows:
-        item = row["item"]
-        ws.append([
-            row["sequence"], item["code"], item["name"], item["specification"],
-            item["unit"], Decimal(row["quantity"]), item["remark"],
-            item["previous_version_name"], item["invoice_name"],
-            item["material_attribute"],
-            "备用选配" if row.get("is_backup_path") else None,
-            row.get("alternative_group_name"),
-            f"{row['market_share']}%" if row.get("market_share") is not None else None,
-            latest_reasons.get(item["id"]),
-        ])
-    style_sheet(ws, len(PRODUCTION_HEADERS))
-    filename = safe_filename(f"{root.code}-{root.name}-生产BOM.xlsx")
-    return filename, workbook_bytes(wb)
+    from .bom_excel import export_workbook
+    return export_workbook(db, root_id, production=True, show_alternatives=show_alternatives, expand_materials=expand_materials)
 
 
 def latest_item_change_reasons(db: Session, item_ids: set[int]) -> dict[int, str]:

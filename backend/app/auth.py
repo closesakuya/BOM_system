@@ -70,4 +70,19 @@ def require_roles(*roles: str):
 
 CurrentUser = Annotated[User, Depends(get_current_user)]
 AdminUser = Annotated[User, Depends(require_roles("admin"))]
-WriteUser = Annotated[User, Depends(require_roles("admin", "maintainer"))]
+WriteUser = Annotated[User, Depends(require_roles("admin", "dev", "maintainer"))]
+MaterialWriteUser = Annotated[User, Depends(require_roles("admin", "dev", "maintainer", "product"))]
+ExportUser = Annotated[User, Depends(require_roles("admin", "dev", "maintainer", "product"))]
+
+
+def check_material_write(user: User, item=None, payload=None) -> None:
+    if user.role != 'product':
+        return
+    if item is not None and (item.item_type != 'material' or item.is_formally_imported or item.unofficial_status != 'pending'):
+        raise HTTPException(403, '生产账号只能维护未封存的未正式原材料')
+    if payload is not None:
+        values = payload.model_dump(exclude_unset=True)
+        if item is None and (payload.item_type != 'material' or payload.is_formally_imported):
+            raise HTTPException(403, '生产账号只能新建未正式原材料')
+        if values.get('components') or values.get('copy_source_id') or values.get('requires_assembly'):
+            raise HTTPException(403, '生产账号不能编辑组成或复制组成配置')

@@ -25,7 +25,7 @@ async function submit() {
     <section class="login-hero">
       <div class="brand-mark">B</div>
       <h1>让每一条物料关系清楚、可靠、可追溯</h1>
-      <p>面向生产现场的 BOM V1.1.1。统一管理原材料、半成品、单元和整机，保留历史数据，并用清晰的技术 BOM 与生产 BOM 支撑日常工作。</p>
+      <p>面向生产现场的 BOM V1.2。统一管理原材料、半成品、单元和整机，保留历史数据，并用清晰的技术 BOM 与生产 BOM 支撑日常工作。</p>
     </section>
     <section class="login-side">
       <form class="login-box" @submit.prevent="submit">

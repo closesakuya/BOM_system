@@ -11,7 +11,7 @@ from typing import Any
 from .config import settings
 
 
-MACHINE_MODELS = ("Y60", "D60", "R60", "T60", "G65", "J60B", "T65")
+MACHINE_MODELS = ("Y60", "D60", "R60", "T60", "G65", "J60B", "T65", "T70")
 OTHER_MODEL = "其他机型"
 ACTION = "backfill_machine_model"
 REASON = "根据整机名称批量匹配机型"

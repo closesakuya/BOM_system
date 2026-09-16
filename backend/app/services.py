@@ -288,29 +288,31 @@ def unofficial_code_from_sequence(value: int) -> str:
     return f"99.{body + 1:04d}.{version}"
 
 
+def unofficial_sequence_floor(db: Session) -> int:
+    # Imported 99 codes retain their numbers; never start allocation back at zero.
+    return int(db.execute(text("""
+        SELECT coalesce(max((cast(substr(code,4,4) AS INTEGER)-1)*10 + cast(substr(code,9,1) AS INTEGER)), -1)+1
+        FROM items WHERE code GLOB '99.[0-9][0-9][0-9][0-9].[0-9]'
+    """)).scalar_one())
+
+
 def preview_unofficial_code(db: Session, offset: int = 0) -> str:
     next_value = db.scalar(
         select(models.CodeSequence.next_value).where(
             models.CodeSequence.name == UNOFFICIAL_SEQUENCE_NAME
         )
     )
-    return unofficial_code_from_sequence(int(next_value or 0) + offset)
+    return unofficial_code_from_sequence(max(int(next_value or 0), unofficial_sequence_floor(db)) + offset)
 
 
 def allocate_unofficial_code(db: Session) -> str:
-    db.execute(
-        text(
-            "INSERT INTO code_sequences (name, next_value) VALUES (:name, 0) "
-            "ON CONFLICT(name) DO NOTHING"
-        ),
-        {"name": UNOFFICIAL_SEQUENCE_NAME},
-    )
     value = db.execute(
         text(
-            "UPDATE code_sequences SET next_value = next_value + 1 "
-            "WHERE name = :name RETURNING next_value - 1"
+            "INSERT INTO code_sequences (name, next_value) VALUES (:name, :floor + 1) "
+            "ON CONFLICT(name) DO UPDATE SET next_value = max(code_sequences.next_value + 1, excluded.next_value) "
+            "RETURNING next_value - 1"
         ),
-        {"name": UNOFFICIAL_SEQUENCE_NAME},
+        {"name": UNOFFICIAL_SEQUENCE_NAME, "floor": unofficial_sequence_floor(db)},
     ).scalar_one()
     return unofficial_code_from_sequence(int(value))
 

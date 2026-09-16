@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 import sqlite3
 import sys
 
@@ -11,8 +12,10 @@ if str(root) not in sys.path:
 from backend.app.v1_1_1_migration import apply_upgrade  # noqa: E402
 
 
-source_database = root / "runtime" / "bom_v1.db"
+source_database = Path(os.environ.get('BOM_E2E_SOURCE', str(root / 'runtime' / 'bom_v1.db'))).resolve()
 test_database = root / "runtime" / "e2e.db"
+if source_database == test_database.resolve():
+    raise SystemExit('测试源库不能是将被重建的 e2e.db')
 if not source_database.exists():
     raise SystemExit(f"初始数据库不存在：{source_database}")
 for candidate in (test_database, Path(f"{test_database}-wal"), Path(f"{test_database}-shm")):
@@ -28,11 +31,20 @@ from backend.app.v1_2_migration import apply_upgrade as upgrade_v12
 upgrade_v12(test_database,create_backup=False,write_reports=False)
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
-from backend.app import models
+from backend.app import models, auth
 from backend.app.v1_2_demo import seed_in_session
 test_engine=create_engine(f'sqlite:///{test_database.as_posix()}')
 with Session(test_engine,expire_on_commit=False) as db:
     seed_in_session(db,db.scalar(select(models.User).where(models.User.role=='admin')))
+    # Test credentials exist only in isolated e2e.db, never in the source/production database.
+    for name, role, password in [('admin','admin','admin123'), ('dev','dev','dev12345'),
+                                  ('product','product','product123'), ('guest','guest','viewer123')]:
+        user = db.scalar(select(models.User).where(models.User.username == name))
+        if not user:
+            user = models.User(username=name, display_name=name, role=role, active=True)
+            db.add(user)
+        user.role, user.password_hash, user.active = role, auth.hash_password(password), True
+    db.commit()
 test_engine.dispose()
 target = root / "runtime" / "e2e-material-import.xlsx"
 target.parent.mkdir(parents=True, exist_ok=True)

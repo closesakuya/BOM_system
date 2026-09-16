@@ -11,7 +11,7 @@ const labels = itemTypeLabels
 </script>
 
 <template>
-  <header class="page-head"><div><h1>工作台</h1><p class="subtitle">BOM 主数据与近期变更概览</p></div><span class="tag">V1.6</span></header>
+  <header class="page-head"><div><h1>工作台</h1><p class="subtitle">BOM 主数据与近期变更概览</p></div><span class="tag">V1.2</span></header>
   <div v-if="error" class="notice error">{{ error }}</div>
   <template v-if="data">
     <section class="grid grid-4">

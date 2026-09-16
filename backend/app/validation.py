@@ -230,7 +230,7 @@ def validate_initial_database() -> dict[str, Any]:
             "representative_root": "00.005.01",
             "representative_technical_rows": technical_rows,
             "representative_production_rows": production_rows,
-            "note": "生产 BOM 样例仅用于复核历史 11 列参考口径；V1.2 当前导出为含路径选配信息的 14 列，不把样例作为运行输入。",
+            "note": "生产 BOM 样例仅复核历史基础字段；当前 Excel 使用动态选配列，网页仍按行展示，不把样例作为运行输入。",
         }
     settings.report_dir.mkdir(parents=True, exist_ok=True)
     target = settings.report_dir / "v1_2-database-validation.json"

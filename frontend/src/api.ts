@@ -32,6 +32,14 @@ export function logout() {
   Object.keys(sessionStorage).filter(key => key.startsWith('bom_switch_')).forEach(key => sessionStorage.removeItem(key))
 }
 
+export function canWriteBusiness() { return ['admin', 'dev', 'maintainer'].includes(session.user?.role || '') }
+export function canExport() { return ['admin', 'dev', 'maintainer', 'product'].includes(session.user?.role || '') }
+export function canVisit(path: string) {
+  if (path === '/users') return session.user?.role === 'admin'
+  if (['/imports', '/maintenance'].includes(path)) return canWriteBusiness()
+  return true
+}
+
 export async function api<T = unknown>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers)
   if (session.token) headers.set('Authorization', `Bearer ${session.token}`)

@@ -666,12 +666,12 @@ def test_item_bom_expansion_cycle_copy_and_exports(client: TestClient, headers: 
         assert material_row[specification_column - 1] == "M4-新规格"
         assert material_row[remark_column - 1] == "新备注"
         if kind == "technical":
-            rows = list(sheet.iter_rows(min_row=3, values_only=True))
+            rows = list(sheet.iter_rows(min_row=4, values_only=True))
             assert [row[1] for row in rows] == [
                 "├─ 1级", "│  └─ 2级", "│     └─ 3级", "│        └─ 4级", "└─ 1级",
             ]
             assert sheet.column_dimensions["B"].width == 32
-            assert all(cell.alignment.wrap_text is not True for cell in sheet["B"][2:])
+            assert all(cell.alignment.wrap_text is not True for cell in sheet["B"][3:])
 
 
 def test_similarity_delete_guard_and_bulk_maintenance(client: TestClient, headers: dict[str, str]):
@@ -806,7 +806,7 @@ def test_material_assembly_rules_and_leaf_compatibility(client: TestClient, head
     leaf_export = client.get(f"/api/items/{leaf['id']}/export/technical", headers=headers)
     assert leaf_export.status_code == 200
     leaf_sheet = load_workbook(io.BytesIO(leaf_export.content)).active
-    assert leaf_sheet.cell(3, 3).value == leaf["code"]
+    assert leaf_sheet.cell(4, 3).value == leaf["code"]
     updated_leaf = client.patch(f"/api/items/{leaf['id']}", headers=headers, json={
         "specification": "图号-LEAF-02", "remark": "无组成，按普通原材料维护",
         "reason": "验证外协叶子档案修改", "similarity_confirmed": True,

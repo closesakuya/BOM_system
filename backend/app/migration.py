@@ -18,7 +18,9 @@ from .database import SessionLocal, init_db
 from .main import seed_admin
 
 
-LEGACY_PATH = PROJECT_ROOT / "data" / "migration" / "BOM物料清单管理(1).xlsm"
+LEGACY_PATH = PROJECT_ROOT / "data" / "migration" / "BOM物料清单管理.xlsm"
+if not LEGACY_PATH.is_file():
+    LEGACY_PATH = PROJECT_ROOT / "data" / "migration" / "BOM物料清单管理(1).xlsm"
 RULE_PATH = PROJECT_ROOT / "data" / "templates" / "新增原材料编码登记表(模版).xlsx"
 TYPE_MAP = {"原材料": "material", "半成品": "semi_finished", "单元": "unit", "整机": "machine"}
 SOURCE_MAP = {"外购": "purchased", "外协": "outsourced", "自制": "self_made"}
@@ -39,10 +41,11 @@ def decimal_value(value: Any) -> Decimal:
         return Decimal("1")
 
 
-def read_legacy() -> tuple[dict[str, dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
-    if not LEGACY_PATH.is_file():
-        raise FileNotFoundError(f"缺少历史迁移文件：{LEGACY_PATH}")
-    wb = load_workbook(LEGACY_PATH, read_only=True, data_only=True, keep_vba=True)
+def read_legacy(path: Path | None = None) -> tuple[dict[str, dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
+    source = (path or LEGACY_PATH).resolve()
+    if not source.is_file():
+        raise FileNotFoundError(f"缺少历史迁移文件：{source}")
+    wb = load_workbook(source, read_only=True, data_only=True, keep_vba=True)
     records: dict[str, dict[str, Any]] = {}
     declared_types: dict[str, set[str]] = defaultdict(set)
     raw_codes: set[str] = set()
@@ -127,7 +130,7 @@ def read_legacy() -> tuple[dict[str, dict[str, Any]], list[dict[str, Any]], dict
             issues.append({"level": "error", **row, "message": "BOM 父项或子项缺少主数据"})
 
     report = {
-        "source": str(LEGACY_PATH.relative_to(PROJECT_ROOT)),
+        "source": str(source),
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "source_item_rows": len(records),
         "source_bom_rows": len(relationships),
