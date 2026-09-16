@@ -49,7 +49,7 @@ watch(() => props.modelValue, () => {
   else if (!open.value) query.value = ''
 }, { immediate: true })
 watch(() => props.items, () => {
-  if (props.modelValue || !query.value.trim()) return
+  if (!open.value || props.modelValue || !query.value.trim()) return
   const exact = props.items.find(item => item.code === query.value.trim() || item.name === query.value.trim())
   if (exact) choose(exact)
 })

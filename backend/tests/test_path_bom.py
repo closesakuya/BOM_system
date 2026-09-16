@@ -51,3 +51,53 @@ def test_purchased_material_expansion_uses_actual_components(db):
                              components=[schemas.BOMComponentIn(child_item_id=a.id, quantity=Decimal(3))]), actor)
     assert services.production_bom(db, b.id, expand_materials=False)[0]['item']['id'] == b.id
     assert services.production_bom(db, b.id, expand_materials=True)[0]['item']['id'] == a.id
+
+
+@pytest.mark.parametrize('select_backup', [False, True])
+def test_remove_last_alternative_keeps_selected_and_quantity(db, select_backup):
+    actor = db.scalar(select(models.User))
+    def create(code, kind, children=()):
+        return services.create_item(db, schemas.ItemCreate(code=code, item_type=kind, name=code,
+            source_type='purchased' if kind == 'material' else None, similarity_confirmed=True,
+            components=[schemas.BOMComponentIn(child_item_id=c.id, quantity=Decimal(3)) for c in children]), actor)
+    a = create('10.8871.0', 'material')
+    b = create('10.8872.0', 'material')
+    semi = create('05.887.01', 'semi_finished', [a])
+    machine = create('00.887.01', 'machine', [semi])
+    path = EffectiveBOM(db).rows(semi.id)[0]['line_path']
+    chosen = b if select_backup else a
+    save_configuration(db, semi.id, dict(line_path=path, mode='custom', selected_item_id=chosen.id,
+        members=[dict(item_id=a.id, market_share='50'), dict(item_id=b.id, market_share='50')], reason='创建选配'), actor)
+    save_configuration(db, semi.id, dict(line_path=path, mode='custom', selected_item_id=chosen.id,
+        members=[dict(item_id=chosen.id, market_share='100')], reason='移除最后备选'), actor)
+    rows = EffectiveBOM(db).rows(semi.id, show_alternatives=True)
+    assert len(rows) == 1 and rows[0]['item']['id'] == chosen.id
+    assert rows[0]['configuration_owner'] is None and not rows[0]['members']
+    assert Decimal(rows[0]['quantity']) == 3
+    assert db.get(models.BOMLine, path[0]).child_item_id == chosen.id
+    assert len(EffectiveBOM(db).rows(machine.id, show_alternatives=True)) == 2
+    assert Decimal(services.production_bom(db, machine.id)[0]['quantity']) == 9
+    assert db.scalar(select(models.AuditEvent).where(models.AuditEvent.reason == '移除最后备选'))
+
+
+def test_remove_inherited_alternatives_does_not_change_shared_child(db):
+    actor = db.scalar(select(models.User))
+    def create(code, kind, children=()):
+        return services.create_item(db, schemas.ItemCreate(code=code, item_type=kind, name=code,
+            source_type='purchased' if kind == 'material' else None, similarity_confirmed=True,
+            components=[schemas.BOMComponentIn(child_item_id=c.id, quantity=Decimal(2)) for c in children]), actor)
+    a = create('10.8861.0', 'material'); b = create('10.8862.0', 'material')
+    semi = create('05.886.01', 'semi_finished', [a])
+    machine = create('00.886.01', 'machine', [semi])
+    other = create('00.886.02', 'machine', [semi])
+    path = EffectiveBOM(db).rows(semi.id)[0]['line_path']
+    save_configuration(db, semi.id, dict(line_path=path, mode='custom', selected_item_id=b.id,
+        members=[dict(item_id=a.id, market_share='50'), dict(item_id=b.id, market_share='50')], reason='下级选配'), actor)
+    nested = EffectiveBOM(db).rows(machine.id)[1]['line_path']
+    save_configuration(db, machine.id, dict(line_path=nested, mode='custom', selected_item_id=b.id,
+        members=[dict(item_id=b.id, market_share='100')], reason='本机移除备选'), actor)
+    rows = EffectiveBOM(db).rows(machine.id, show_alternatives=True)
+    assert len(rows) == 2 and rows[1]['item']['id'] == b.id
+    assert rows[1]['configuration_mode'] == 'disabled' and not rows[1]['members']
+    assert len(EffectiveBOM(db).rows(other.id, show_alternatives=True)) == 3
+    assert db.get(models.BOMLine, path[0]).child_item_id == a.id

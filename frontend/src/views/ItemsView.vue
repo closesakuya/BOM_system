@@ -388,6 +388,7 @@ function applyKeywordSearch(query: string) {
   message.value = listQuery.value ? `已按“${listQuery.value}”筛选下方全部匹配物料` : '已恢复当前类别全部物料'
 }
 async function choose(item: Item, revealInList = false) {
+  if (searchItemId.value !== item.id) searchItemId.value = 0
   revealSelectedItemId = revealInList ? item.id : 0
   if (revealInList) ensureItemInList(item)
   selected.value = item; tab.value = 'basic'; referenceFilter.value = 'all'; message.value = ''; error.value = ''
@@ -769,9 +770,9 @@ async function copyVersion() {
   if (!selected.value) return
   try { const copied = await api<Item>(`/items/${selected.value.id}/copy`, { method: 'POST', body: JSON.stringify({ mode: 'new_version', reason: '从界面复制新版本' }) }); await load(); await choose(copied); message.value = `已创建版本 ${copied.code}` } catch (event) { error.value = (event as Error).message }
 }
-watch([searchItemId, listSearchCandidates], async ([id, candidates]) => {
+watch(searchItemId, async id => {
   if (!id) return
-  const item = candidates.find(row => row.id === id)
+  const item = listSearchCandidates.value.find(row => row.id === id)
   if (item && selected.value?.id !== item.id) await choose(item, true)
 })
 watch([type, () => route.query.id], ([nextType], [previousType]) => { if(nextType!==previousType){listFilter.value='';formalFilter.value='';modelFilter.value='';semiKindFilter.value='';listQuery.value=''} cancelCandidateSearch(); searchItemId.value = 0; revealSelectedItemId=0; batchSelected.value=[]; selected.value = null; detail.value = null; resetForm(); reloadList() })

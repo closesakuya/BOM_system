@@ -178,6 +178,11 @@ def save_configuration(db: Session, owner_id: int, payload: dict, actor: models.
         ids = [int(m['item_id']) for m in members]
     except (TypeError,ValueError,KeyError):
         raise HTTPException(422,'选配候选或当前项格式不正确')
+    # A single remaining selected component means remove alternatives, not an
+    # invalid group. Keep deep overrides fixed without changing shared children.
+    single_selected = mode == 'custom' and ids == [selected]
+    if single_selected:
+        mode, members = 'disabled', []
     if mode == 'custom':
         if len(ids) < 2 or len(ids) != len(set(ids)) or selected not in ids:
             raise HTTPException(422, '自定义选配至少包含两个不同组件，当前项必须在候选内')
@@ -200,7 +205,17 @@ def save_configuration(db: Session, owner_id: int, payload: dict, actor: models.
             if any(r['item']['id'] == item_id for r in siblings):
                 raise HTTPException(409, f"该父项已直接包含 {child.code}，不能重复或合并")
     with db.begin_nested():
-        if mode == 'inherit':
+        if single_selected and len(path) == 1:
+            line = db.get(models.BOMLine, path[0])
+            if line.child_item_id != selected:
+                line_before = services.bom_line_dict(line)
+                line.child_item_id = selected
+                line.child = graph.items[selected]
+                services.audit(db, actor.id, 'update', 'bom_line', line.id, reason,
+                               before=line_before, after=services.bom_line_dict(line))
+            if old:
+                db.delete(old)
+        elif mode == 'inherit':
             if old:
                 db.delete(old)
         elif old:
