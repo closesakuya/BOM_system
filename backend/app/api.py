@@ -955,7 +955,7 @@ def item_history(item_id: int, db: Db, user: auth.CurrentUser) -> list[dict[str,
 
 @router.get("/items/{item_id}/export/{bom_type}")
 def export_bom(
-    item_id: int, bom_type: str, db: Db, user: auth.ExportUser,
+    item_id: int, bom_type: str, db: Db, user: auth.BOMExportUser,
     show_alternatives: bool = True, expand_materials: bool | None = None,
 ) -> StreamingResponse:
     if bom_type not in {"technical", "production"}:
@@ -970,7 +970,7 @@ def export_bom(
 
 @router.post("/bom/batch-export/{bom_type}")
 def batch_export(
-    bom_type: str, item_ids: list[int], db: Db, user: auth.ExportUser,
+    bom_type: str, item_ids: list[int], db: Db, user: auth.BOMExportUser,
     show_alternatives: bool = True, expand_materials: bool | None = None,
 ) -> StreamingResponse:
     if bom_type not in {"technical", "production"}:

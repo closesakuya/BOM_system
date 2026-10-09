@@ -34,7 +34,11 @@ export function logout() {
 
 export function canWriteBusiness() { return ['admin', 'dev', 'maintainer'].includes(session.user?.role || '') }
 export function canExport() { return ['admin', 'dev', 'maintainer', 'product'].includes(session.user?.role || '') }
+export function canExportProduction() { return canExport() || session.user?.role === 'finance' }
+export function canExportTechnical() { return canExport() || session.user?.role === 'finance' }
+export function homePath() { return session.user?.role === 'finance' ? '/items/material' : '/' }
 export function canVisit(path: string) {
+  if (session.user?.role === 'finance') return ['/items/material', '/items/semi_finished', '/items/unit', '/items/machine', '/audit'].includes(path)
   if (path === '/users') return session.user?.role === 'admin'
   if (['/imports', '/maintenance'].includes(path)) return canWriteBusiness()
   return true

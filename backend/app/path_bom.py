@@ -152,8 +152,8 @@ def save_configuration(db: Session, owner_id: int, payload: dict, actor: models.
     if not owner or owner.deleted_at:
         raise HTTPException(404, '所属物料不存在')
     services.ensure_item_writable(owner)
-    if owner.item_type not in {'semi_finished', 'unit', 'machine'}:
-        raise HTTPException(422, '只能在半成品、单元和整机中配置选配')
+    if owner.item_type not in {'material', 'semi_finished', 'unit', 'machine'}:
+        raise HTTPException(422, '该物料类型不支持配置选配')
     reason = str(payload.get('reason', '')).strip()
     if not reason:
         raise HTTPException(422, '请填写变更说明')
@@ -164,8 +164,6 @@ def save_configuration(db: Session, owner_id: int, payload: dict, actor: models.
     target = next((r for r in graph.rows(owner_id) if r['line_path'] == path), None)
     if not target:
         raise HTTPException(409, '该路径已变化，请刷新后重新选择')
-    if graph.items[target['parent_item_id']].item_type == 'material':
-        raise HTTPException(422, '原材料下级不支持选配配置')
     mode = payload.get('mode', 'custom')
     if mode not in {'inherit', 'custom', 'disabled'}:
         raise HTTPException(422, '选配模式不正确')

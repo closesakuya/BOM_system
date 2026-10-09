@@ -11,7 +11,7 @@ export const sourceLabels: Record<string, string> = {
 }
 
 export const roleLabels: Record<string, string> = {
-  dev: '研发', product: '生产', guest: '访客', admin: '管理员', maintainer: '维护员', viewer: '查看者',
+  dev: '研发', product: '生产', finance: '财务', guest: '访客', admin: '管理员', maintainer: '维护员', viewer: '查看者',
 }
 
 export const actionLabels: Record<string, string> = {

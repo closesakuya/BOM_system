@@ -30,7 +30,7 @@ onMounted(async () => { try { await load() } catch (e) { error.value = (e as Err
     <tbody><tr v-for="user in rows" :key="user.id"><td>{{user.username}}</td><td>{{user.display_name}}</td><td>{{roleLabels[user.role] || user.role}}</td><td>{{user.active?'启用':'停用'}}</td><td><button class="btn secondary small" @click="edit(user)">编辑 / 重置密码</button></td></tr></tbody></table></section>
   <div v-if="editing" class="modal-mask"><form class="modal" @submit.prevent="save"><div class="modal-head"><h2>编辑账户</h2><button type="button" aria-label="关闭" @click="editing=null">×</button></div>
     <label>用户名<input v-model="form.username" required minlength="3"/></label><label>显示名称<input v-model="form.display_name" required/></label>
-    <label>角色<select v-model="form.role" :disabled="editing.id===session.user?.id"><option value="admin">管理员</option><option value="dev">研发</option><option value="product">生产</option><option value="guest">访客</option></select></label>
+    <label>角色<select v-model="form.role" :disabled="editing.id===session.user?.id"><option value="admin">管理员</option><option value="dev">研发</option><option value="product">生产</option><option value="finance">财务</option><option value="guest">访客</option></select></label>
     <label>状态<select v-model="form.active" :disabled="editing.id===session.user?.id"><option :value="true">启用</option><option :value="false">停用</option></select></label>
     <label>新密码<input v-model="form.password" type="password" autocomplete="new-password" minlength="6" placeholder="留空则不修改密码"/></label>
     <div class="actions"><button type="button" class="btn secondary" @click="editing=null">取消</button><button class="btn">保存</button></div>

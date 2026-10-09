@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { session, canVisit } from './api'
+import { session, canVisit, homePath } from './api'
 import LoginView from './views/LoginView.vue'
 import DashboardView from './views/DashboardView.vue'
 import ItemsView from './views/ItemsView.vue'
@@ -29,6 +29,6 @@ export const router = createRouter({
 
 router.beforeEach((to) => {
   if (!to.meta.public && !session.token) return '/login'
-  if (!to.meta.public && !canVisit(to.path)) return '/'
-  if (to.path === '/login' && session.token) return '/'
+  if (!to.meta.public && !canVisit(to.path)) return homePath()
+  if (to.path === '/login' && session.token) return homePath()
 })

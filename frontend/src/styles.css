@@ -3,7 +3,13 @@
 body { margin: 0; min-width: 1120px; }
 button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
-.app-shell { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+.app-shell { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 100vh; }
+.app-shell.sidebar-collapsed { grid-template-columns: 44px minmax(0, 1fr); }
+.sidebar-collapsed .sidebar { padding: 12px 6px; }
+.sidebar-content { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.sidebar-toggle { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 32px; margin-bottom: 16px; padding: 6px; border: 1px solid #486581; border-radius: 6px; background: transparent; color: #dce8f4; cursor: pointer; }
+.sidebar-toggle:hover { background: #243f56; }
+.sidebar-toggle:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
 .sidebar { position: sticky; top: 0; height: 100vh; color: #dce8f4; background: #102a43; padding: 20px 14px; display: flex; flex-direction: column; }
 .brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 22px; }
 .brand-mark { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 10px; background: #16a085; color: white; font-size: 22px; font-weight: 800; }

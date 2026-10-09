@@ -8,7 +8,8 @@ from backend.app import models, schemas, services
 from backend.app.path_bom import EffectiveBOM, save_configuration
 
 
-def test_inheritance_override_disable_and_ownership(db):
+@pytest.mark.parametrize('owner_kind', ['semi_finished', 'material'])
+def test_inheritance_override_disable_and_ownership(db, owner_kind):
     actor = db.scalar(select(models.User))
     def create(code, kind, children=()):
         return services.create_item(db, schemas.ItemCreate(
@@ -17,7 +18,7 @@ def test_inheritance_override_disable_and_ownership(db):
             components=[schemas.BOMComponentIn(child_item_id=c.id, quantity=Decimal(2)) for c in children]), actor)
     a = create('10.7771.0', 'material')
     b = create('10.7772.0', 'material')
-    semi = create('05.777.01', 'semi_finished', [a])
+    semi = create('10.7773.0' if owner_kind == 'material' else '05.777.01', owner_kind, [a])
     y = create('00.777.01', 'machine', [semi])
     d = create('00.778.01', 'machine', [semi])
     y.machine_model, d.machine_model = 'Y60', 'D60'
@@ -54,7 +55,8 @@ def test_purchased_material_expansion_uses_actual_components(db):
 
 
 @pytest.mark.parametrize('select_backup', [False, True])
-def test_remove_last_alternative_keeps_selected_and_quantity(db, select_backup):
+@pytest.mark.parametrize('owner_kind', ['semi_finished', 'material'])
+def test_remove_last_alternative_keeps_selected_and_quantity(db, select_backup, owner_kind):
     actor = db.scalar(select(models.User))
     def create(code, kind, children=()):
         return services.create_item(db, schemas.ItemCreate(code=code, item_type=kind, name=code,
@@ -62,7 +64,7 @@ def test_remove_last_alternative_keeps_selected_and_quantity(db, select_backup):
             components=[schemas.BOMComponentIn(child_item_id=c.id, quantity=Decimal(3)) for c in children]), actor)
     a = create('10.8871.0', 'material')
     b = create('10.8872.0', 'material')
-    semi = create('05.887.01', 'semi_finished', [a])
+    semi = create('10.8873.0' if owner_kind == 'material' else '05.887.01', owner_kind, [a])
     machine = create('00.887.01', 'machine', [semi])
     path = EffectiveBOM(db).rows(semi.id)[0]['line_path']
     chosen = b if select_backup else a
@@ -80,14 +82,15 @@ def test_remove_last_alternative_keeps_selected_and_quantity(db, select_backup):
     assert db.scalar(select(models.AuditEvent).where(models.AuditEvent.reason == '移除最后备选'))
 
 
-def test_remove_inherited_alternatives_does_not_change_shared_child(db):
+@pytest.mark.parametrize('owner_kind', ['semi_finished', 'material'])
+def test_remove_inherited_alternatives_does_not_change_shared_child(db, owner_kind):
     actor = db.scalar(select(models.User))
     def create(code, kind, children=()):
         return services.create_item(db, schemas.ItemCreate(code=code, item_type=kind, name=code,
             source_type='purchased' if kind == 'material' else None, similarity_confirmed=True,
             components=[schemas.BOMComponentIn(child_item_id=c.id, quantity=Decimal(2)) for c in children]), actor)
     a = create('10.8861.0', 'material'); b = create('10.8862.0', 'material')
-    semi = create('05.886.01', 'semi_finished', [a])
+    semi = create('10.8863.0' if owner_kind == 'material' else '05.886.01', owner_kind, [a])
     machine = create('00.886.01', 'machine', [semi])
     other = create('00.886.02', 'machine', [semi])
     path = EffectiveBOM(db).rows(semi.id)[0]['line_path']

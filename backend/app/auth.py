@@ -75,6 +75,17 @@ MaterialWriteUser = Annotated[User, Depends(require_roles("admin", "dev", "maint
 ExportUser = Annotated[User, Depends(require_roles("admin", "dev", "maintainer", "product"))]
 
 
+def require_bom_export(bom_type: str, user: Annotated[User, Depends(get_current_user)]) -> User:
+    if user.role in {'admin', 'dev', 'maintainer', 'product'}:
+        return user
+    if user.role == 'finance' and bom_type in {'production', 'technical'}:
+        return user
+    raise HTTPException(403, '当前账户仅可导出已授权的 BOM 类型')
+
+
+BOMExportUser = Annotated[User, Depends(require_bom_export)]
+
+
 def check_material_write(user: User, item=None, payload=None) -> None:
     if user.role != 'product':
         return
